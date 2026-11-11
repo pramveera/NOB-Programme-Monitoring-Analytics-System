@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOB Programme Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root{--blue:#2563eb;--bg:#f4f7fb;--ink:#172033;--muted:#64748b;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Segoe UI,Arial,sans-serif}
+header{background:white;border-bottom:1px solid var(--line);padding:22px 4%}h1{margin:0;font-size:25px}header p{margin:6px 0 0;color:var(--muted)}
+main{max-width:1400px;margin:auto;padding:24px 4%}.bar,.tabs,.actions,.upload{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.tabs{justify-content:flex-start}.tab,button{border:0;border-radius:9px;padding:10px 15px;font-weight:600;cursor:pointer}.tab{background:#e7edf6;color:#334155}.tab.active,.primary{background:var(--blue);color:white}.secondary{background:#eaf0ff;color:#1d4ed8}
+input,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:white;font-size:14px}
+.notice{margin:16px 0;padding:12px 14px;border-radius:9px;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:13px}
+.notice.error{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.grid{display:grid;gap:16px}.kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin:18px 0}.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card,.filter{background:white;border:1px solid var(--line);border-radius:13px;padding:17px;box-shadow:0 5px 20px #0f172a0a;min-width:0}
+.metric-label{font-size:13px;color:var(--muted);font-weight:600}.metric{font-size:30px;font-weight:750;margin-top:8px}
+h2{font-size:19px;margin:8px 0 16px}h3{font-size:16px;margin:0 0 14px}.muted{font-size:13px;color:var(--muted)}
+.filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+label{display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:7px}
+.table-wrap{overflow:auto;max-height:500px;border:1px solid var(--line);border-radius:9px}
+table{border-collapse:collapse;width:100%;white-space:nowrap;background:white;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid #edf0f5;text-align:left}
+th{position:sticky;top:0;background:#f8fafc;color:#475569;z-index:1}
+tbody tr{cursor:pointer}tbody tr:hover{background:#eff6ff}
+.chart{height:260px}.hidden{display:none!important}.empty{text-align:center;padding:25px;color:var(--muted)}
+button:disabled{opacity:.5;cursor:not-allowed}footer{text-align:center;color:var(--muted);font-size:12px;padding:25px}
+dialog{border:0;border-radius:15px;width:min(760px,calc(100% - 25px));padding:0;box-shadow:0 25px 80px #0004}
+dialog::backdrop{background:#0f172a99;backdrop-filter:blur(3px)}
+.modal-head{padding:17px 21px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.modal-body{padding:20px}.profile{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.profile-item{background:#f8fafc;padding:12px;border-radius:9px;overflow-wrap:anywhere}
+.profile-item small{display:block;color:var(--muted);font-weight:600;margin-bottom:6px}
+@media(max-width:800px){.kpis,.two{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.filters,.profile{grid-template-columns:1fr}h1{font-size:21px}}
+</style>
+</head>
+<body>
+<header><h1>📊 NOB Programme Dashboard</h1><p>Indian Youth Congress | Calls Analysis</p></header>
+<main>
+<div class="bar">
+<nav class="tabs">
+<button class="tab active" data-page="overview">Overview</button>
+<button class="tab" data-page="received">Received Calls</button>
+<button class="tab" data-page="notReceived">Not Received Calls</button>
+</nav>
+<div class="upload"><label for="excelFile">Choose Excel workbook</label><input id="excelFile" type="file" accept=".xlsx,.xls"></div>
+</div>
+<div id="status" class="notice">Choose <b>Pre_NOBs_Calls_Report 2.xlsx</b>. The workbook will be processed in your browser.</div>
+
+<section id="overviewPage">
+<h2>Overall Calls Overview</h2>
+<div class="grid kpis">
+<div class="card"><div class="metric-label">Total Calls</div><div class="metric" id="totalCalls">—</div></div>
+<div class="card"><div class="metric-label">Received Calls</div><div class="metric" id="receivedCalls">—</div></div>
+<div class="card"><div class="metric-label">Not Received Calls</div><div class="metric" id="notReceivedCalls">—</div></div>
+</div>
+<div class="card"><h3>Call Status Distribution</h3><div class="chart"><canvas id="statusChart"></canvas></div></div>
+<div class="card" style="margin-top:16px"><h3>Overall Summary</h3><p id="summary" class="muted">Upload the Excel workbook to view the summary.</p></div>
+</section>
+
+<section id="receivedPage" class="hidden">
+<h2>Received Calls Analysis</h2>
+<div class="filters">
+<div class="filter"><label for="nameSearch">Search Person by Name</label><input id="nameSearch" placeholder="Enter person's name"></div>
+<div class="filter"><label for="assemblySearch">Search by Assembly</label><input id="assemblySearch" placeholder="Enter assembly name"></div>
+<div class="filter"><label for="stateFilter">State</label><select id="stateFilter"><option value="">All states</option></select></div>
+<div class="filter"><label for="partyFilter">Party</label><select id="partyFilter"><option value="">All parties</option></select></div>
+<div class="filter"><label for="genderFilter">Gender</label><select id="genderFilter"><option value="">All genders</option></select></div>
+<div class="filter"><label for="helpFilter">Help Required</label><select id="helpFilter"><option value="">All categories</option></select></div>
+<div class="filter"><label for="assemblyFilter">Assembly</label><select id="assemblyFilter"><option value="">All assemblies</option></select></div>
+</div>
+<div class="grid kpis">
+<div class="card"><div class="metric-label">Matching Records</div><div class="metric" id="matching">0</div></div>
+<div class="card"><div class="metric-label">Unique States</div><div class="metric" id="uniqueStates">0</div></div>
+<div class="card"><div class="metric-label">Selected Person</div><div class="metric" id="selectedPerson" style="font-size:18px">None</div></div>
+</div>
+<div class="grid two">
+<div class="card"><h3>Top 10 — State</h3><div class="chart"><canvas id="stateChart"></canvas></div></div>
+<div class="card"><h3>Top 10 — Party</h3><div class="chart"><canvas id="partyChart"></canvas></div></div>
+<div class="card"><h3>Top 10 — Help In</h3><div class="chart"><canvas id="helpChart"></canvas></div></div>
+<div class="card"><h3>Top 10 — Gender</h3><div class="chart"><canvas id="genderChart"></canvas></div></div>
+</div>
+<div class="card" style="margin-top:16px"><h3>Received Calls Records <span class="muted">(click a row to open profile)</span></h3>
+<div id="receivedTable" class="table-wrap"></div>
+<div class="actions" style="margin-top:14px"><button id="downloadReceived" class="primary">📥 Download Received Calls Excel</button><span class="muted">Names and phone numbers are excluded.</span></div></div>
+</section>
+
+<section id="notReceivedPage" class="hidden">
+<h2>Not Received Calls Analysis</h2>
+<div class="grid kpis"><div class="card"><div class="metric-label">Total Not Received Contacts</div><div class="metric" id="notReceivedTotal">—</div></div></div>
+<div class="notice">This worksheet contains contact records but does not provide additional categorical fields for meaningful distribution analysis.</div>
+<div class="card"><h3>Not Received Contacts <span class="muted">(click a row to open profile)</span></h3>
+<div id="notReceivedTable" class="table-wrap"></div>
+<div class="actions" style="margin-top:14px"><button id="downloadNotReceived" class="primary">📥 Download Not Received Calls Excel</button><span class="muted">Names and phone numbers are excluded.</span></div></div>
+</section>
+<footer>NOB Programme Dashboard | Data Analysis Project</footer>
+</main>
+
+<dialog id="profileDialog">
+<div class="modal-head"><strong>👤 Individual Profile</strong><button id="closeDialog" class="secondary">Close</button></div>
+<div class="modal-body"><h3>Person Information</h3><div id="profileContent" class="profile"></div><p class="muted">Phone number is masked. Access personal information only when authorized.</p></div>
+</dialog>
+
+<script>
+let received=[],notReceived=[],filtered=[],charts={};
+const $=id=>document.getElementById(id);
+const val=v=>v===null||v===undefined?"":String(v).trim();
+const shown=v=>val(v)||"Not available";
+const fmt=n=>Number(n||0).toLocaleString("en-IN");
+
+function status(msg,error=false){$("status").textContent=msg;$("status").className=error?"notice error":"notice";}
+function unique(rows,key){return [...new Set(rows.map(r=>val(r[key])).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
+function fill(id,items,label){const s=$(id),old=s.value;s.innerHTML="";const first=new Option(label,"");s.add(first);items.forEach(x=>s.add(new Option(x,x)));if(items.includes(old))s.value=old;}
+
+function chart(id,type,labels,data,colors){
+ if(charts[id])charts[id].destroy();
+ charts[id]=new Chart($(id),{type,data:{labels,datasets:[{data,backgroundColor:colors||"#2563eb",borderWidth:1}]},
+ options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="doughnut",position:"bottom"}},scales:type==="bar"?{y:{beginAtZero:true,ticks:{precision:0}}}:{}}});
+}
+function overview(){
+ const r=received.length,n=notReceived.length,t=r+n;
+ $("totalCalls").textContent=fmt(t);$("receivedCalls").textContent=fmt(r);$("notReceivedCalls").textContent=fmt(n);
+ $("summary").textContent=`Out of ${fmt(t)} total contacts, ${fmt(r)} calls were received and ${fmt(n)} were not received.`;
+ chart("statusChart","doughnut",["Received","Not Received"],[r,n],["#2563eb","#f59e0b"]);
+}
+function categoryChart(id,key){
+ const counts={};filtered.forEach(row=>{const v=val(row[key]);if(v)counts[v]=(counts[v]||0)+1;});
+ const entries=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+ chart(id,"bar",entries.map(x=>x[0]),entries.map(x=>x[1]));
+}
+function applyFilters(){
+ const name=$("nameSearch").value.trim().toLowerCase(),assText=$("assemblySearch").value.trim().toLowerCase();
+ const state=$("stateFilter").value,party=$("partyFilter").value,gender=$("genderFilter").value,help=$("helpFilter").value,assembly=$("assemblyFilter").value;
+ filtered=received.filter(r=>val(r.Name).toLowerCase().includes(name)&&val(r.Assembly).toLowerCase().includes(assText)&&(!state||val(r.State)===state)&&(!party||val(r.Party)===party)&&(!gender||val(r.Gender)===gender)&&(!help||val(r["Help In"])===help)&&(!assembly||val(r.Assembly)===assembly));
+ $("matching").textContent=fmt(filtered.length);$("uniqueStates").textContent=new Set(filtered.map(r=>val(r.State)).filter(Boolean)).size;$("selectedPerson").textContent="None";
+ ["stateChart","partyChart","helpChart","genderChart"].forEach((id,i)=>categoryChart(id,["State","Party","Help In","Gender"][i]));
+ renderTable(filtered,"receivedTable");
+}
+function renderTable(rows,target){
+ const box=$(target);if(!rows.length){box.innerHTML='<div class="empty">No matching records.</div>';return;}
+ const cols=Object.keys(rows[0]).filter(c=>c.toLowerCase()!=="phone");
+ const table=document.createElement("table"),thead=document.createElement("thead"),hr=document.createElement("tr");
+ cols.forEach(c=>{const th=document.createElement("th");th.textContent=c;hr.appendChild(th);});thead.appendChild(hr);table.appendChild(thead);
+ const body=document.createElement("tbody");
+ rows.forEach((row,i)=>{const tr=document.createElement("tr");cols.forEach(c=>{const td=document.createElement("td");td.textContent=shown(row[c]);tr.appendChild(td);});
+ tr.addEventListener("click",()=>{if(target==="receivedTable")$("selectedPerson").textContent=val(row.Name)||`Record ${i+1}`;profile(row);});body.appendChild(tr);});
+ table.appendChild(body);box.innerHTML="";box.appendChild(table);
+}
+function profile(person){
+ const box=$("profileContent");box.innerHTML="";
+ const preferred=["Name","Gender","State","Party","Assembly","Help In","Name of the Election","Legal help","Phone"];
+ const fields=preferred.filter(k=>Object.prototype.hasOwnProperty.call(person,k));
+ Object.keys(person).forEach(k=>{if(!fields.includes(k))fields.push(k);});
+ fields.forEach(k=>{let v=person[k];if(k.toLowerCase()==="phone"&&val(v))v="*".repeat(Math.max(0,val(v).length-4))+val(v).slice(-4);
+ const item=document.createElement("div");item.className="profile-item";const small=document.createElement("small"),strong=document.createElement("strong");small.textContent=k;strong.textContent=shown(v);item.append(small,strong);box.appendChild(item);});
+ $("profileDialog").showModal();
+}
+function download(rows,filename){
+ if(!rows.length)return;
+ const safe=rows.map(r=>{const x={...r};delete x.Name;delete x.Phone;return x;});
+ const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(safe);XLSX.utils.book_append_sheet(wb,ws,"Records");XLSX.writeFile(wb,filename);
+}
+function page(p){
+ $("overviewPage").classList.toggle("hidden",p!=="overview");$("receivedPage").classList.toggle("hidden",p!=="received");$("notReceivedPage").classList.toggle("hidden",p!=="notReceived");
+ document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===p));
+ if(p==="received"&&received.length)applyFilters();
+}
+$("excelFile").addEventListener("change",async e=>{
+ const file=e.target.files[0];if(!file)return;
+ try{
+ const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+ if(!wb.Sheets["Received Calls"]||!wb.Sheets["Not Received Calls"])throw new Error('Workbook must contain sheets named "Received Calls" and "Not Received Calls".');
+ received=XLSX.utils.sheet_to_json(wb.Sheets["Received Calls"],{defval:""}).map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k.trim(),typeof v==="string"?v.trim():v])));
+ notReceived=XLSX.utils.sheet_to_json(wb.Sheets["Not Received Calls"],{defval:""}).map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k.trim(),typeof v==="string"?v.trim():v])));
+ fill("stateFilter",unique(received,"State"),"All states");fill("partyFilter",unique(received,"Party"),"All parties");fill("genderFilter",unique(received,"Gender"),"All genders");fill("helpFilter",unique(received,"Help In"),"All categories");fill("assemblyFilter",unique(received,"Assembly"),"All assemblies");
+ overview();$("notReceivedTotal").textContent=fmt(notReceived.length);applyFilters();renderTable(notReceived,"notReceivedTable");
+ status(`Loaded ${fmt(received.length)} received records and ${fmt(notReceived.length)} not received records successfully.`);
+ }catch(err){status(err.message||"Could not read workbook.",true);}
+});
+["nameSearch","assemblySearch","stateFilter","partyFilter","genderFilter","helpFilter","assemblyFilter"].forEach(id=>$(id).addEventListener(id.includes("Search")?"input":"change",()=>{if(received.length)applyFilters();}));
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
+$("downloadReceived").addEventListener("click",()=>download(filtered,"NOB_Received_Calls.xlsx"));
+$("downloadNotReceived").addEventListener("click",()=>download(notReceived,"NOB_Not_Received_Calls.xlsx"));
+$("closeDialog").addEventListener("click",()=>$("profileDialog").close());
+$("profileDialog").addEventListener("click",e=>{if(e.target===$("profileDialog"))$("profileDialog").close();});
+</script>
+</body>
+</html>
